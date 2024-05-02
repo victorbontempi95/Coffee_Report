@@ -1,0 +1,116 @@
+ALTER TABLE `USDA.Coffee`
+DROP COLUMN Commodity_Code,-- Commodity Description is enough
+DROP COLUMN Country_Code, -- Country Name is enough
+DROP COLUMN Calendar_Year, -- We'll only use Market Year
+DROP COLUMN Attribute_ID, -- Attribute Description is enough
+DROP COLUMN Unit_ID, -- Only 1 unit
+DROP COLUMN Unit_Description -- All value are in thousands of 60kg bags
+
+
+--
+
+SELECT DISTINCT(Attribute_Description)
+FROM `optimistic-host-421515.USDA.Coffee` 
+
+- Attributes to explore:
+
+- Production (Arabica & Robusta)
+- Imports
+- Exports
+- Domestic Consumption
+- Total Supply
+- Total Distribution
+
+--
+
+SELECT 
+  Country_Name,
+  Attribute_Description,
+  SUM(Value) AS Domestic_Consumption,
+  SUM(Value) / SUM(SUM(Value)) OVER () AS Pct
+FROM USDA.Coffee
+WHERE Attribute_Description = "Domestic Consumption" AND 
+      Market_Year = 2023
+GROUP BY 
+  Country_Name,
+  Attribute_Description
+HAVING SUM(Value) >= 500
+ORDER BY 
+  Domestic_Consumption DESC
+
+--
+
+SELECT 
+      Country_Name, 
+      SUM(Value) as Total_Exports, 
+      SUM(Value) / SUM(SUM(Value)) OVER() AS Export_Pct 
+FROM USDA.Coffee
+WHERE Attribute_Description = 'Exports' AND
+      Market_Year = 2023
+GROUP BY Country_Name
+ORDER BY Total_Exports DESC
+ 
+
+--
+
+SELECT 
+      Country_Name, 
+      SUM(Value) as Total_Imports,
+      SUM(Value) / SUM(SUM(Value)) OVER() AS Import_Pct 
+FROM USDA.Coffee
+WHERE Attribute_Description = 'Imports' AND
+      Market_Year = 2023
+GROUP BY Country_Name
+HAVING SUM(Value) >= 500
+ORDER BY Total_Imports DESC
+
+
+--
+
+SELECT 
+  Country_Name,
+  Attribute_Description,
+  SUM(Value) AS Country_Production,
+  SUM(Value) / SUM(SUM(Value)) OVER () AS Pct
+FROM USDA.Coffee
+WHERE Attribute_Description = "Production" AND 
+      Market_Year = 2023
+GROUP BY 
+  Country_Name,
+  Attribute_Description
+HAVING SUM(Value) >= 500
+ORDER BY 
+  Country_Production DESC
+
+
+--
+
+WITH Cons_Cof AS (
+SELECT 
+  Attribute_Description,
+  Market_Year,
+  SUM(Value) AS Coffee_Consumption
+FROM USDA.Coffee
+WHERE Attribute_Description = 'Domestic Consumption' AND
+      Market_Year BETWEEN 2014 AND 2023
+GROUP BY Attribute_Description, Market_Year
+),
+Prod_Cof AS (
+SELECT 
+  Attribute_Description,
+  Market_Year,
+  SUM(Value) AS Coffee_Production
+FROM USDA.Coffee
+WHERE Attribute_Description = 'Production' AND
+      Market_Year BETWEEN 2014 AND 2023
+GROUP BY Attribute_Description, Market_Year
+)
+
+SELECT 
+    cc.Market_Year,
+    cc.Coffee_Consumption,
+    pc.Coffee_Production,
+    (pc.Coffee_Production - cc.Coffee_Consumption) AS Net_Coffee
+FROM Cons_Cof cc
+INNER JOIN Prod_Cof pc ON cc.Market_Year = pc.Market_Year;
+
